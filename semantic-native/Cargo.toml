@@ -1,0 +1,15 @@
+[package]
+name = "semantic-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+arrow = { version = "55.0.0", features = ["ffi"] }
+
+
+[build-dependencies]
+cc = "1.0"
