@@ -70,6 +70,8 @@ object SemFilterExample {
     filteredDF.show()
 
     println("\nStopping SparkSession.")
+    Thread.sleep(1000000) // Sleep for 1 second
+
     spark.stop()
     println("SemFilter Example finished.")
   }
