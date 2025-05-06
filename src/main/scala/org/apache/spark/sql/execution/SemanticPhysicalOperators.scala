@@ -8,12 +8,10 @@ import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.types.pojo.Schema
 
-import scala.util.matching.Regex
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.util.ArrowUtils
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.vectorized.{ColumnarArray, ColumnarBatch}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.vectorized.ColumnarArray
 import SemOperatorPlugin.utils.ArrowColumnarConverters._
 
 
@@ -26,46 +24,6 @@ case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExe
   // all the variables at the beginning to take advantage of short circuiting.
 
   override def output: Seq[Attribute] = child.output
-
-  // Create a new VectorSchemaRoot containing only the specified columns
-  private def createSubsetVectorSchemaRoot(root: VectorSchemaRoot, columnNames: List[String]): VectorSchemaRoot = {
-    // Get the schema and fields
-    val schema = root.getSchema
-    val fields = schema.getFields.asScala
-
-    val selectedFields = columnNames.map { colName =>
-      fields.find(_.getName == colName).getOrElse {
-        throw new IllegalArgumentException(s"Column $colName not found in schema")
-      }
-    }
-
-    // Get the vectors for the selected fields
-    val selectedVectors = selectedFields.map { field =>
-      root.getVector(field.getName)
-    }
-
-    val allocator = selectedVectors.headOption
-      .map(_.getAllocator)
-      .getOrElse(throw new IllegalStateException("No vectors found in VectorSchemaRoot"))
-
-    // Create a new VectorSchemaRoot with the selected fields and vectors
-    val newSchema = new org.apache.arrow.vector.types.pojo.Schema(selectedFields.asJava)
-    val newRoot = VectorSchemaRoot.create(newSchema, allocator)
-    newRoot.getFieldVectors.asScala.zip(selectedVectors).foreach { case (newVector, oldVector) =>
-      newVector.setInitialCapacity(oldVector.getValueCount)
-      newVector.allocateNew()
-      // Copy data from old vector to new vector
-      for (i <- 0 until oldVector.getValueCount) {
-        if (!oldVector.isNull(i)) {
-          newVector.copyFrom(i, i, oldVector)
-        }
-      }
-      newVector.setValueCount(oldVector.getValueCount)
-    }
-    newRoot.setRowCount(root.getRowCount)
-
-    newRoot
-  }
 
   protected override def doExecute(): RDD[InternalRow] = {
     throw new UnsupportedOperationException()
@@ -110,8 +68,6 @@ case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExe
     child.executeColumnar().mapPartitions { batchIterator =>
       // Get partition's allocator (reuse if possible, or create new per partition)
       // Consider using ArrowUtils.rootAllocator for simplicity if suitable
-      //val allocator = ArrowUtils.rootAllocator.newChildAllocator(s"partition-${TaskContext.getPartitionId()}-allocator", 0, Long.MaxValue)
-      //val allocator = GlobalAllocator.newChildAllocator(this.getClass)
       val arrowSchema = ArrowUtils.toArrowSchema(child.schema, timeZoneId) // Convert Spark schema to Arrow schema
 
       // For filter processor, the return dataframe schema should be the same as the input one
@@ -119,7 +75,6 @@ case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExe
       // Ensure processor is closed when the task completes (success or failure)
       TaskContext.get().addTaskCompletionListener[Unit] { _ =>
         jniProcessor.close()
-        //allocator.close() // Close the partition allocator too
       }
 
       // Return an iterator that processes batches and handles resources
@@ -128,9 +83,8 @@ case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExe
         override def next(): ColumnarBatch = {
           val inputBatch = batchIterator.next()
           var processedRoot: VectorSchemaRoot = null
-          var outputBatch: ColumnarBatch = null // Declare outside try
+          var outputBatch: ColumnarBatch = null
           try {
-            //val originalRoot = columnarBatchToVectorSchemaRoot(inputBatch, schema, timeZoneId)
             var arrowVector = columnarBatchToSubsetVectorSchemaRoot(inputBatch, arrowSchema)
             processedRoot = jniProcessor.apply(arrowVector)
             outputBatch = processedRoot.toBatch
@@ -139,11 +93,7 @@ case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExe
             outputBatch
 
           } finally {
-            // Cleanup in case of exceptions during processing
-            // Close any intermediate roots that weren't successfully processed/transferred
-            // Only close processedRoot if it wasn't successfully passed to outputBatch
             if (processedRoot != null) processedRoot.close()
-            // inputBatch is managed by Spark, do not close here.
           }
         } // End next()
       } // End iterator

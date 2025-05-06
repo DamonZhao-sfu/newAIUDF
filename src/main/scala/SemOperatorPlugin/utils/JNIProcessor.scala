@@ -30,6 +30,7 @@ class JNIProcessor(prompt: String, outputSchema: Schema) extends UnaryOperator[V
   private lazy val rootOut = VectorSchemaRoot.create(outputSchema, allocator)
 
   @native private def process(
+                                prompt: String,
                                 inputArrayPtr: Long,
                                 inputSchemaPtr: Long,
                                 outputArrayPtr: Long,
@@ -64,6 +65,7 @@ class JNIProcessor(prompt: String, outputSchema: Schema) extends UnaryOperator[V
     try {
       // Call the native method
       process(
+        prompt,
         inputArray.memoryAddress(),
         inputSchema.memoryAddress(),
         outputArrayBuf.memoryAddress(),

@@ -7,10 +7,6 @@ import scala.collection.JavaConverters._
 
 object ArrowColumnarConverters {
 
-  /**
-   * adds a method to ColumnarBatch to convert it into a [[VectorSchemaRoot]]
-   * (works as long the ColumnarBatch contains [[ArrowColumnVector]]s)
-   */
   implicit class ColumnarBatchUnloader(columnarBatch: ColumnarBatch){
     def toArrow: VectorSchemaRoot = {
       val columnVectors = (0 until columnarBatch.numCols).map(columnarBatch.column)
@@ -26,10 +22,6 @@ object ArrowColumnarConverters {
     }
   }
 
-  /**
-   * adds a method to [[VectorSchemaRoot]] to convert it into a [[ColumnarBatch]]
-   * (no data transformation required, uses [[ArrowColumnVector]]s)
-   */
   implicit class VectorSchemaRootUnloader(root: VectorSchemaRoot) {
     lazy val loader = new VectorLoader(root)
     def toBatch: ColumnarBatch = {
@@ -56,10 +48,6 @@ object ArrowColumnarConverters {
     vectorField
   }
 
-  /**
-   * extracts the arrow [[FieldVector]] from the [[ArrowColumnVector]].
-   * Unfortunately the vector is private and therefore the Reflection API is used.
-   */
   private def extractVector(arrowColumnVector: ArrowColumnVector): FieldVector = {
     val accessor = accessorField.get(arrowColumnVector)
     vectorField.get(accessor).asInstanceOf[FieldVector]

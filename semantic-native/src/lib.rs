@@ -9,18 +9,34 @@ use arrow::ffi::FFI_ArrowArray;
 use arrow::ffi::FFI_ArrowSchema;
 use arrow::ffi::from_ffi;
 use arrow::ffi::to_ffi;
-use jni::sys::jobjectArray;
+use jni::sys::jstring;
+use regex::Regex;
 
 // Struct to wrap an Arrow RecordBatch for FFI
 struct ArrowRecordBatchWrapper {
     batch: RecordBatch,
 }
 
+fn extract_column_names(prompt: &str) -> Result<Vec<String>, String> {
+    let re = Regex::new(r"\{([^}]+)\}").map_err(|e| e.to_string())?;
+    let matches: Vec<String> = re
+        .captures_iter(prompt)
+        .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
+        .collect();
+
+    if matches.is_empty() {
+        Err(format!("No column names found in prompt: {}", prompt))
+    } else {
+        Ok(matches)
+    }
+}
+
 // JNI entry point function to process Arrow data
 #[no_mangle]
-pub extern "system" fn Java_SemOperatorPlugin_utils_JNIProcessor_process(
-    env: JNIEnv,
+unsafe extern "system" fn Java_SemOperatorPlugin_utils_JNIProcessor_process(
+    mut env: JNIEnv,
     _class: JClass,
+    prompt: jstring,
     input_array_ptr: jlong,
     input_schema_ptr: jlong,
     output_array_ptr: jlong,
@@ -28,7 +44,8 @@ pub extern "system" fn Java_SemOperatorPlugin_utils_JNIProcessor_process(
 ) -> jlong {
     // Try to process the Arrow data and handle errors
     match process_arrow_data(
-        &env, // Pass env by reference
+        &mut env, // Pass env by reference
+        prompt,
         input_array_ptr,
         input_schema_ptr,
         output_array_ptr,
@@ -45,8 +62,9 @@ pub extern "system" fn Java_SemOperatorPlugin_utils_JNIProcessor_process(
     }
 }
 
-fn process_arrow_data(
-    _env: &JNIEnv,
+unsafe fn process_arrow_data(
+    env: &mut JNIEnv,
+    prompt: jstring,
     input_array_ptr: jlong,
     input_schema_ptr: jlong,
     output_array_ptr: jlong,
@@ -55,7 +73,12 @@ fn process_arrow_data(
     // Convert the input pointers to FFI structs
     let in_array = input_array_ptr as *mut FFI_ArrowArray;
     let in_schema = input_schema_ptr as *mut FFI_ArrowSchema;
-
+    let prompt_str: String = env
+        .get_string(&JString::from_raw(prompt))
+        .unwrap()
+        .into();
+    let columns = extract_column_names(&prompt_str);
+    println!("{:?}", columns);
     // Safety: The pointers should be valid as they come from the JVM
     unsafe {
         let array = std::ptr::read(in_array);
@@ -67,7 +90,6 @@ fn process_arrow_data(
 
         let schema = Arc::new(Schema::try_from(&*in_schema)?);
         let batch = RecordBatch::try_new(schema, child_array_refs)?;
-
 
         // filter the batch
 
