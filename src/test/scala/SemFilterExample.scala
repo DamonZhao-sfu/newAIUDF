@@ -1,6 +1,5 @@
-package SemOperatorPlugin
-
 import org.apache.spark.sql.SparkSession
+
 /**
  * Step 5: Example Usage
  */
@@ -39,5 +38,3 @@ object SemFilterExample {
     println("SemFilter Example finished.")
   }
 }
-
-

@@ -1,5 +1,8 @@
 // Rust Side - src/lib.rs
 
+mod llm;
+mod expressions;
+
 use std::sync::Arc;
 use jni::{JNIEnv, JavaVM, objects::{JClass, JObject, JString}, sys::{jlong}};
 use arrow::array::{ArrayRef, make_array, StructArray, Array};

@@ -10,6 +10,9 @@ crate-type = ["cdylib"]
 jni = "0.21"
 arrow = { version = "55.0.0", features = ["ffi"] }
 regex = "1.11.1"
+reqwest = "0.12.15"
+serde = { version = "1.0.219", features = ["derive"] }
+pyo3 = "0.24.2"
 
 
 [build-dependencies]

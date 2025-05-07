@@ -1,13 +1,18 @@
 package SemOperatorPlugin
 
-import org.apache.spark.sql.{SparkSessionExtensions, Strategy}
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan}
+import org.apache.spark.sql.{Dataset, Encoder, SparkSession, SparkSessionExtensions, Strategy}
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.SemanticFilterExec
+import org.apache.spark.sql.catalyst.plans.logical.SemFilterLogical
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder
+import scala.reflect.runtime.universe.TypeTag
 
 class SemSparkSessionExtension extends (SparkSessionExtensions => Unit) {
   // Define the strategy as an inner object or companion object
+
+
   object SemanticOperatorsStrategy extends Strategy {
     def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
       // Match the logical node

@@ -7,8 +7,6 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.types.pojo.Schema
-
-import scala.collection.JavaConverters._
 import org.apache.spark.sql.util.ArrowUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.vectorized.ColumnarArray
@@ -17,11 +15,7 @@ import SemOperatorPlugin.utils.ArrowColumnarConverters._
 
 
 case class SemanticFilterExec(prompt: String, child: SparkPlan) extends UnaryExecNode {
-  // Split out all the IsNotNulls from condition.
   override def supportsColumnar: Boolean = true
-
-  // Mark this as empty. We'll evaluate the input during doConsume(). We don't want to evaluate
-  // all the variables at the beginning to take advantage of short circuiting.
 
   override def output: Seq[Attribute] = child.output
 
